@@ -218,7 +218,7 @@ if query:
         try:
             retrieve = bond_agents.invoke(query)
         except:
-            st.chat_message("User").write("i'm sorry idk why its not working")
+            st.chat_message("AI").write("I'm having some trouble dealing with that query. Is there anything else I can help you with?")
 
     if bond_agents is None:
         st.chat_message("AI").write("agents is not there only da")
