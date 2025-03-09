@@ -177,7 +177,7 @@ bond_yield_calculator_tool = StructuredTool(
 bond_agents = initialize_agent(
     tools=[bond_directory_agent_tool, bond_cashflow_agent_tool, bond_yield_calculator_tool],
     llm=model,
-    agent=AgentType.OPENAI_FUNCTIONS,
+    agent=AgentType.STRUCTURED_CHAT_ZERO_SHOT_REACT_DESCRIPTION,
     verbose=False
 )
 
