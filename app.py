@@ -211,7 +211,7 @@ if query:
     chat_history.append(HumanMessage(query))
     st.session_state.chat_history.append(HumanMessage(query))
     st.chat_message("User").write(query)
-    retrieve = bond_agents.invoke(query)
+    retrieve = bond_agents.invoke(query.strip())
     agent_output = retrieve.get("output", retrieve) if isinstance(retrieve, dict) else retrieve
     formatted_query = f"Here is relevant data: {agent_output}. Now answer: {query}"
     chat_history.append(HumanMessage(formatted_query))
