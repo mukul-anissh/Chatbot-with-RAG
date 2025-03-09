@@ -14,14 +14,12 @@ import datetime
 
 load_dotenv()
 
-# Initialize model
 model = gemini(model="gemini-2.0-flash", api_key=getenv("API_KEY"))
 
-# Load datasets
-bonds = pd.read_csv("/home/mukul/Documents/Code/bonds/bonds.csv").fillna("Unknown")
-cashflows = pd.read_csv("/home/mukul/Documents/Code/bonds/cashflows.csv").fillna("Unknown")
+bonds = pd.read_csv("bonds.csv").fillna("Unknown")
+cashflows = pd.read_csv("cashflows.csv").fillna("Unknown")
 
-# Bond Directory Agent
+#bond directory agent
 class BondQuery(BaseModel):
     isin: Optional[str] = None
     credit_rating: Optional[str] = None
@@ -175,7 +173,7 @@ bond_yield_calculator_tool = StructuredTool(
     args_schema=BondYieldQuery
 )
 
-# Initialize Bond Agents
+#all agents
 bond_agents = initialize_agent(
     tools=[bond_directory_agent_tool, bond_cashflow_agent_tool, bond_yield_calculator_tool],
     llm=model,
@@ -183,11 +181,10 @@ bond_agents = initialize_agent(
     verbose=False
 )
 
-# Streamlit UI
+#ui
 st.title("TapBonds AI Chatbot")
 st.write("Mukul Anissh G")
 
-# Initialize chat history
 chat_history = [
     SystemMessage(
         "you are a financial AI assistant deployed by TapBonds, specializing in bonds and cashflows. "
@@ -204,12 +201,10 @@ greeting = model.invoke(chat_history)
 if "chat_history" not in st.session_state:
     st.session_state.chat_history = [AIMessage(greeting.content)]
 
-# Display chat history
 for msg in st.session_state.chat_history:
     role = "User" if isinstance(msg, HumanMessage) else "AI"
     st.chat_message(role).write(msg.content)
 
-# User input
 query = st.chat_input("Ask about bonds...")
 if query:
     chat_history.append(HumanMessage(query))
