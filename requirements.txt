@@ -4,7 +4,6 @@ gradio
 pandas
 numpy
 typing
-re
 datetime
 pydantic
 python-dotenv
