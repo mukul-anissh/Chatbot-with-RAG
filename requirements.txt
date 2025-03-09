@@ -1,9 +1,2 @@
+streamlit
 langchain
-langchain_google_genai
-gradio
-pandas
-numpy
-typing
-datetime
-pydantic
-python-dotenv
