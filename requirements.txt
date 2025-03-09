@@ -1,0 +1,10 @@
+langchain
+langchain_google_genai
+gradio
+pandas
+numpy
+typing
+re
+datetime
+pydantic
+python-dotenv
