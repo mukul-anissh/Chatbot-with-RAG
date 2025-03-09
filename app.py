@@ -217,7 +217,9 @@ if query:
     else:
         st.chat_message("User").write(repr(query))
         retrieve = bond_agents.invoke(query)
-        
+
+    if bond_agents is None:
+        st.chat_message("AI").write("agents is not there only da")
     agent_output = retrieve.get("output", retrieve) if isinstance(retrieve, dict) else retrieve
     formatted_query = f"Here is relevant data: {agent_output}. Now answer: {query}"
     chat_history.append(HumanMessage(formatted_query))
