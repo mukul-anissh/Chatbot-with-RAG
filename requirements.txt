@@ -1,2 +1,6 @@
 streamlit
 langchain
+langchain_google_genai
+pandas
+numpy
+langchain_core
