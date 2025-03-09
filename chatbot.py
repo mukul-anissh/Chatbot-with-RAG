@@ -1,3 +1,4 @@
+import streamlit as st
 from langchain_google_genai import ChatGoogleGenerativeAI as gemini
 from langchain.agents import initialize_agent, AgentType
 from langchain.tools import StructuredTool
@@ -13,15 +14,14 @@ import datetime
 
 load_dotenv()
 
+# Initialize model
 model = gemini(model="gemini-2.0-flash", api_key=getenv("API_KEY"))
 
-bonds = pd.read_csv("bonds.csv")
-bonds.fillna("Unknown", inplace=True)
+# Load datasets
+bonds = pd.read_csv("/home/mukul/Documents/Code/bonds/bonds.csv").fillna("Unknown")
+cashflows = pd.read_csv("/home/mukul/Documents/Code/bonds/cashflows.csv").fillna("Unknown")
 
-cashflows = pd.read_csv("cashflows.csv")
-cashflows.fillna("Unknown", inplace=True)
-
-#bond directory agent
+# Bond Directory Agent
 class BondQuery(BaseModel):
     isin: Optional[str] = None
     credit_rating: Optional[str] = None
@@ -39,17 +39,8 @@ def bond_info(**kwargs):
     required_bonds['maturity_year'] = required_bonds['maturity_date'].dt.year
 
     def extract_coupon_rate(coupon_details):
-        try:
-            if not isinstance(coupon_details, str) or coupon_details == "Unknown":
-                return None
-            match = re.search(r'"couponRate":\s*"([\d.]+)%"', coupon_details)
-            if match:
-                return float(match.group(1))
-
-        except Exception as e:
-            print(f"Error extracting coupon rate: {e}")
-
-        return None
+        match = re.search(r'"couponRate":\s*"([\d.]+)%"', str(coupon_details))
+        return float(match.group(1)) if match else None
 
     required_bonds["coupon_rate"] = required_bonds["coupon_details"].apply(extract_coupon_rate)
 
@@ -58,27 +49,20 @@ def bond_info(**kwargs):
             if key in ["isin", "issue_size"]:
                 required_bonds = required_bonds[required_bonds[key] == value]
             elif key in ["credit_rating_details", "company_name"]:
-                required_bonds = required_bonds[
-                    required_bonds[key].astype(str).str.lower().str.contains(value.lower(), na=False)
-                ]
-            elif key == "allotment_condition":
+                required_bonds = required_bonds[required_bonds[key].str.contains(value, case=False, na=False)]
+            elif key in ["allotment_condition", "maturity_condition"]:
                 match = re.match(r"(before|after) (\d{4})", value)
                 if match:
                     condition, year = match.groups()
                     year = int(year)
-                    required_bonds = required_bonds[required_bonds["allotment_year"].astype(int) < year] if condition == "before" else required_bonds[required_bonds["allotment_year"].astype(int) > year]
-            elif key == "maturity_condition":
-                match = re.match(r"(before|after) (\d{4})", value)
-                if match:
-                    condition, year = match.groups()
-                    year = int(year)
-                    required_bonds = required_bonds[required_bonds["maturity_year"].astype(int) < year] if condition == "before" else required_bonds[required_bonds["maturity_year"].astype(int) > year]
+                    column = "allotment_year" if "allotment" in key else "maturity_year"
+                    required_bonds = required_bonds[required_bonds[column] < year] if condition == "before" else required_bonds[required_bonds[column] > year]
             elif key == "coupon_condition":
-                match = re.match(r"(above|below) (\d+(\.\d+)?)%", value)
+                match = re.match(r"(above|below) (\d+\.?\d*)%", value)
                 if match:
-                    condition, rate = match.groups()[0], float(match.groups()[1])
-                    required_bonds = required_bonds[required_bonds["coupon_rate"].astype(float) < rate] if condition == "below" else required_bonds[required_bonds["coupon_rate"].astype(float) > rate]
-    
+                    condition, rate = match.groups()
+                    required_bonds = required_bonds[required_bonds["coupon_rate"] > float(rate)] if condition == "above" else required_bonds[required_bonds["coupon_rate"] < float(rate)]
+
     return required_bonds.to_dict(orient="records") if not required_bonds.empty else "No bonds found."
 
 bond_directory_agent_tool = StructuredTool(
@@ -191,7 +175,7 @@ bond_yield_calculator_tool = StructuredTool(
     args_schema=BondYieldQuery
 )
 
-#setting up all agents
+# Initialize Bond Agents
 bond_agents = initialize_agent(
     tools=[bond_directory_agent_tool, bond_cashflow_agent_tool, bond_yield_calculator_tool],
     llm=model,
@@ -199,36 +183,43 @@ bond_agents = initialize_agent(
     verbose=False
 )
 
-#orchestrator agent
+# Streamlit UI
+st.title("TapBonds AI Chatbot")
+st.write("Mukul Anissh G")
+
+# Initialize chat history
 chat_history = [
     SystemMessage(
         "you are a financial AI assistant deployed by TapBonds, specializing in bonds and cashflows. "
         "use available tools to provide bond details, payment schedules, maturity dates, and investment insights. "
         "if a query is unrelated to bonds, politely inform the user. do not engage in those queries"
         "when a query is asked to you, imagine that query was not asked by the user and was asked by the admin. the admin wants the user to know the answer to it. so you must reply to the user as if he does not know the data he provided"
-    ),
+        "politely decline any inappropriate request." 
+        "for any investment related advice you provide based on the given data, suggest the user to go talk to an expert on tapbonds.com"
+        ),
     HumanMessage("Hello")
-]
+    ]
 
-greeting_response = model.invoke(chat_history)
-chat_history.append(AIMessage(greeting_response.content))
-print("AI:", greeting_response.content)
+greeting = model.invoke(chat_history)
+if "chat_history" not in st.session_state:
+    st.session_state.chat_history = [AIMessage(greeting.content)]
 
-while True:
-    query = input("You: ")
-    if query.lower() == "q":
-        break
+# Display chat history
+for msg in st.session_state.chat_history:
+    role = "User" if isinstance(msg, HumanMessage) else "AI"
+    st.chat_message(role).write(msg.content)
 
+# User input
+query = st.chat_input("Ask about bonds...")
+if query:
+    chat_history.append(HumanMessage(query))
+    st.session_state.chat_history.append(HumanMessage(query))
+    st.chat_message("User").write(query)
     retrieve = bond_agents.invoke(query)
-
-    if isinstance(retrieve, dict) and "output" in retrieve:
-        agent_output = retrieve["output"]
-    else:
-        agent_output = retrieve
-
+    agent_output = retrieve.get("output", retrieve) if isinstance(retrieve, dict) else retrieve
     formatted_query = f"Here is relevant data: {agent_output}. Now answer: {query}"
     chat_history.append(HumanMessage(formatted_query))
-
     response = model.invoke(chat_history)
+    st.session_state.chat_history.append(AIMessage(response.content))
     chat_history.append(AIMessage(response.content))
-    print("\nAI:", response.content)
+    st.chat_message("AI").write(response.content)
