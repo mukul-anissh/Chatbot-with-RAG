@@ -205,8 +205,9 @@ for msg in st.session_state.chat_history:
     role = "User" if isinstance(msg, HumanMessage) else "AI"
     st.chat_message(role).write(msg.content)
 
-query = st.chat_input("Ask about bonds...").strip()
+query = st.chat_input("Ask about bonds...")
 if query:
+    query = query.strip()
     chat_history.append(HumanMessage(query))
     st.session_state.chat_history.append(HumanMessage(query))
     st.chat_message("User").write(query)
