@@ -4,3 +4,4 @@ langchain_google_genai
 pandas
 numpy
 langchain_core
+dotenv
