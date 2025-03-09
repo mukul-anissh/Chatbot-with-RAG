@@ -215,8 +215,10 @@ if query:
     if query is None or query.strip() == "":
         print("skipping blank entries")
     else:
-        st.chat_message("User").write(repr(query))
-        retrieve = bond_agents.invoke(query)
+        try:
+            retrieve = bond_agents.invoke(query)
+        except:
+            st.chat_message("User").write("i'm sorry idk why its not working")
 
     if bond_agents is None:
         st.chat_message("AI").write("agents is not there only da")
