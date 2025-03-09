@@ -213,7 +213,7 @@ if query:
     st.chat_message("User").write(query)
 
     if query is None or query.strip() == "":
-    p    rint("Skipping invocation due to empty query")
+        print("skipping blank entries")
     else:
         retrieve = agents.invoke(query)
         
