@@ -11,21 +11,17 @@ from typing import Optional
 import re
 import datetime
 
-# Load environment variables
 load_dotenv()
 
-# Load Gemini model
 model = gemini(model="gemini-2.0-flash", api_key=getenv("API_KEY"))
 
-# Load datasets
-bonds = pd.read_csv("/home/mukul/Documents/Code/bonds/bonds.csv")
+bonds = pd.read_csv("bonds.csv")
 bonds.fillna("Unknown", inplace=True)
 
-cashflows = pd.read_csv("/home/mukul/Documents/Code/bonds/cashflows.csv")
+cashflows = pd.read_csv("cashflows.csv")
 cashflows.fillna("Unknown", inplace=True)
 
-# ===================== Bond Directory Agent ===================== #
-
+#bond directory agent
 class BondQuery(BaseModel):
     isin: Optional[str] = None
     credit_rating: Optional[str] = None
@@ -44,23 +40,18 @@ def bond_info(**kwargs):
 
     def extract_coupon_rate(coupon_details):
         try:
-            # Ensure coupon_details is a string and check for missing values
             if not isinstance(coupon_details, str) or coupon_details == "Unknown":
-                return None  # Return None if no valid coupon rate exists
-
-            # Extract the coupon rate using regex
+                return None
             match = re.search(r'"couponRate":\s*"([\d.]+)%"', coupon_details)
             if match:
-                return float(match.group(1))  # Convert extracted rate to float
+                return float(match.group(1))
 
         except Exception as e:
             print(f"Error extracting coupon rate: {e}")
 
-        return None  # Default return if extraction fails
+        return None
 
-    # Apply the function to extract coupon rates
     required_bonds["coupon_rate"] = required_bonds["coupon_details"].apply(extract_coupon_rate)
-
 
     for key, value in kwargs.items():
         if value:
@@ -97,8 +88,7 @@ bond_directory_agent_tool = StructuredTool(
     args_schema=BondQuery
 )
 
-# ===================== Bond Cashflow Agent ===================== #
-
+#bond cashflow agent
 class CashflowQuery(BaseModel):
     isin: Optional[str] = None
     year: Optional[int] = None
@@ -128,15 +118,14 @@ bond_cashflow_agent_tool = StructuredTool(
     args_schema=CashflowQuery
 )
 
-# ===================== Bond Yield Calculator Agent ===================== #
-
+#bond yield calculator agent
 class BondYieldQuery(BaseModel):
     isin: Optional[str] = None
     issuer_name: Optional[str] = None
     investment_date: str
     units: int
-    yield_rate: Optional[float] = None  # If given, calculate price
-    price: Optional[float] = None  # If given, calculate yield
+    yield_rate: Optional[float] = None
+    price: Optional[float] = None 
 
 def calculate_bond_price_or_yield(
     isin: Optional[str] = None,
@@ -149,7 +138,6 @@ def calculate_bond_price_or_yield(
     if not isin and not issuer_name:
         return "Please provide either ISIN or issuer name."
     
-    # Filter bonds based on ISIN or issuer name
     selected_bond = bonds.copy()
     if isin:
         selected_bond = selected_bond[selected_bond["isin"] == isin]
@@ -159,7 +147,6 @@ def calculate_bond_price_or_yield(
     if selected_bond.empty:
         return "No bond found."
     
-    # Retrieve cashflows for the selected bond
     bond_isin = selected_bond.iloc[0]["isin"]
     bond_cashflows = cashflows[cashflows["isin"] == bond_isin]
     bond_cashflows["cash_flow_date"] = pd.to_datetime(bond_cashflows["cash_flow_date"], errors="coerce")
@@ -168,30 +155,25 @@ def calculate_bond_price_or_yield(
     if bond_cashflows.empty:
         return "No cashflow data found for the selected bond."
     
-    # Convert investment date
     try:
         investment_date = datetime.strptime(investment_date, "%Y-%m-%d")
     except ValueError:
         return "Invalid investment date format. Use YYYY-MM-DD."
     
-    # Extract relevant cash flows after investment date
     future_cashflows = bond_cashflows[bond_cashflows["cash_flow_date"] >= investment_date]
     if future_cashflows.empty:
         return "No future cashflows available."
     
-    # Extract principal and coupon payments
     cashflow_dates = future_cashflows["cash_flow_date"].to_list()
     coupon_payments = future_cashflows["interest_amount"].to_numpy()
     principal_payments = future_cashflows["principal_amount"].to_numpy()
     total_cashflows = coupon_payments + principal_payments
     
-    # Calculate bond price if yield is given
     if yield_rate is not None:
         discount_factors = [(1 + yield_rate / 100) ** ((date - investment_date).days / 365) for date in cashflow_dates]
         bond_price = sum(cf / df for cf, df in zip(total_cashflows, discount_factors))
         return {"bond_price": bond_price * units}
     
-    # Calculate yield if price is given
     if price is not None:
         def yield_function(y):
             return sum(cf / ((1 + y / 100) ** ((date - investment_date).days / 365)) for cf, date in zip(total_cashflows, cashflow_dates)) - price
@@ -209,8 +191,7 @@ bond_yield_calculator_tool = StructuredTool(
     args_schema=BondYieldQuery
 )
 
-# ===================== Multi-Agent Setup ===================== #
-
+#setting up all agents
 bond_agents = initialize_agent(
     tools=[bond_directory_agent_tool, bond_cashflow_agent_tool, bond_yield_calculator_tool],
     llm=model,
@@ -218,13 +199,12 @@ bond_agents = initialize_agent(
     verbose=False
 )
 
-# ===================== Chatbot ===================== #
-
+#orchestrator agent
 chat_history = [
     SystemMessage(
-        "You are a financial AI assistant deployed by TapBonds, specializing in bonds and cashflows. "
-        "Use available tools to provide bond details, payment schedules, maturity dates, and investment insights. "
-        "If a query is unrelated to bonds, politely inform the user."
+        "you are a financial AI assistant deployed by TapBonds, specializing in bonds and cashflows. "
+        "use available tools to provide bond details, payment schedules, maturity dates, and investment insights. "
+        "if a query is unrelated to bonds, politely inform the user. do not engage in those queries"
         "when a query is asked to you, imagine that query was not asked by the user and was asked by the admin. the admin wants the user to know the answer to it. so you must reply to the user as if he does not know the data he provided"
     ),
     HumanMessage("Hello")
