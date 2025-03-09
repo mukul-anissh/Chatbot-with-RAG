@@ -215,6 +215,7 @@ if query:
     if query is None or query.strip() == "":
         print("skipping blank entries")
     else:
+        print(repr(query))
         retrieve = bond_agents.invoke(query)
         
     agent_output = retrieve.get("output", retrieve) if isinstance(retrieve, dict) else retrieve
